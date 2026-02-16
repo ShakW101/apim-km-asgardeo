@@ -81,7 +81,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -94,16 +93,12 @@ public class AsgardeoOAuthClient extends AbstractKeyManager {
 
 
     private AuthClient authClient;
-    private AsgardeoTokenClient tokenClient;
     private AsgardeoDCRClient dcrClient;
     private AsgardeoAppClient appClient;
     private AsgardeoIntrospectionClient introspectionClient;
     private AsgardeoAPIResourceClient apiResourceClient;
     private AsgardeoAPIResourceScopesClient apiResourceScopesClient;
     private AsgardeoSCIMRolesClient asgardeoSCIMRolesClient;
-
-    private final Map<String, String> scopeNameToIdMap = new ConcurrentHashMap<>();
-
 
     private String mgmtClientId, mgmtClientSecret; //client id and secret of app management api authorized
     private String globalApiResourceId;
@@ -187,7 +182,7 @@ public class AsgardeoOAuthClient extends AbstractKeyManager {
             apiResourceServerBase = baseURL + "/t/" + org + "/api/server/v1/api-resources";
         }
 
-        tokenClient = feign.Feign.builder()
+        AsgardeoTokenClient tokenClient = feign.Feign.builder()
                 .client(new feign.okhttp.OkHttpClient())
                 .encoder(new FormEncoder())
                 .decoder(new feign.gson.GsonDecoder())
@@ -406,7 +401,7 @@ public class AsgardeoOAuthClient extends AbstractKeyManager {
         out.addParameter(ApplicationConstants.OAUTH_CLIENT_SECRET, dcrClient.getClientSecret());
         out.addParameter(ApplicationConstants.OAUTH_CLIENT_NAME, dcrClient.getClientName());
 
-        if (dcrClient.getGrantTypes() != null && dcrClient.getGrantTypes().size() > 0) {
+        if (dcrClient.getGrantTypes() != null && !dcrClient.getGrantTypes().isEmpty()) {
             out.addParameter(APIConstants.JSON_GRANT_TYPES, String.join(" ", dcrClient.getGrantTypes()));
         }
 
@@ -561,7 +556,7 @@ public class AsgardeoOAuthClient extends AbstractKeyManager {
             if (pkceMandatoryValue instanceof String) {
                 if (!AsgardeoConstants.PKCE_MANDATORY.equals(pkceMandatoryValue)) {
                     try {
-                        Boolean pkceMandatory = Boolean.parseBoolean((String) pkceMandatoryValue);
+                        boolean pkceMandatory = Boolean.parseBoolean((String) pkceMandatoryValue);
                         body.setPkceMandatory(pkceMandatory);
                     } catch (NumberFormatException e) {
                         // No need to throw as its due to not a number sent.
@@ -576,7 +571,7 @@ public class AsgardeoOAuthClient extends AbstractKeyManager {
             if (pkceSupportPlainValue instanceof String) {
                 if (!AsgardeoConstants.PKCE_SUPPORT_PLAIN.equals(pkceSupportPlainValue)) {
                     try {
-                        Boolean pkceSupportPlain = Boolean.parseBoolean((String) pkceSupportPlainValue);
+                        boolean pkceSupportPlain = Boolean.parseBoolean((String) pkceSupportPlainValue);
                         body.setPkceSupportPlain(pkceSupportPlain);
                     } catch (NumberFormatException e) {
                         // No need to throw as its due to not a number sent.
@@ -591,7 +586,7 @@ public class AsgardeoOAuthClient extends AbstractKeyManager {
             if (publicClientValue instanceof String) {
                 if (!AsgardeoConstants.PUBLIC_CLIENT.equals(publicClientValue)) {
                     try {
-                        Boolean pkceSupportPlain = Boolean.parseBoolean((String) publicClientValue);
+                        boolean pkceSupportPlain = Boolean.parseBoolean((String) publicClientValue);
                         body.setPublicClient(pkceSupportPlain);
                     } catch (NumberFormatException e) {
                         // No need to throw as its due to not a number sent.
@@ -711,10 +706,10 @@ public class AsgardeoOAuthClient extends AbstractKeyManager {
     }
 
     /**
-     * This is used to get the meta data of the accesstoken.
+     * This is used to get the metadata of the access token.
      *
      * @param accessToken AccessToken.
-     * @return The meta data details of accesstoken.
+     * @return The metadata details of access token.
      * @throws APIManagementException This is the custom exception class for API management.
      */
     @Override
@@ -906,8 +901,6 @@ public class AsgardeoOAuthClient extends AbstractKeyManager {
             List<AsgardeoScopeResponse> scopes = apiResourceScopesClient.listScopes(globalApiResourceId);
 
             for (AsgardeoScopeResponse s : scopes) {
-                scopeNameToIdMap.put((s.getName()), s.getId());
-
                 Scope scope = new Scope();
                 scope.setKey((s.getName()));
                 scope.setName(s.getDisplayName());
@@ -973,7 +966,6 @@ public class AsgardeoOAuthClient extends AbstractKeyManager {
     public void deleteScope(String scopeName) throws APIManagementException {
         try {
             apiResourceScopesClient.deleteScope(globalApiResourceId, scopeName);
-            scopeNameToIdMap.remove(scopeName);
         } catch (feign.FeignException e) {
             handleException("Failed to delete scope: " + scopeName + " from WSO2 IS7 API Resource: " +
                     AsgardeoConstants.GLOBAL_API_RESOURCE_NAME, e);
@@ -1097,7 +1089,7 @@ public class AsgardeoOAuthClient extends AbstractKeyManager {
         try {
             JsonArray roles = searchRoles(filter);
 
-            if (roles != null && !roles.isJsonNull() && roles.size() > 0) {
+            if (roles != null && !roles.isJsonNull() && !roles.isEmpty()) {
                 return roles.get(0).getAsJsonObject().get("id").getAsString();
             }
         } catch (feign.FeignException e) {
@@ -1349,7 +1341,7 @@ public class AsgardeoOAuthClient extends AbstractKeyManager {
                                             .from(ExceptionCodes.INVALID_APPLICATION_ADDITIONAL_PROPERTIES, errMsg));
                                 }
                             } else {
-                                Long longValue = Long.parseLong(additionalProperty);
+                                long longValue = Long.parseLong(additionalProperty);
                                 if (longValue < 0) {
                                     String errMsg = "Application configuration values cannot have negative values.";
                                     throw new APIManagementException(errMsg, ExceptionCodes
